@@ -9,7 +9,6 @@
 | `kicad/ble-actuator-board.kicad_pro` | KiCad 10 project: schematic, PCB, custom design rules (`.kicad_dru`) |
 | `kicad/easyeda_lib.pretty`, `kicad/easyeda_lib.3dshapes` | Project-local footprints and 3D models (referenced through the project `fp-lib-table`) |
 | `bom.csv` | Bill of materials: MPN, LCSC part number, footprint, package, ratings |
-| `REVIEW_REQUEST.md` | Short overview and the questions for reviewers |
 
 This spec is the reference the schematic and layout are checked against. It turns the product requirements into a buildable design: every part, value, footprint, and pin connection, plus layout rules and bring-up. Requirement IDs (`HW-*`, `EN-*`, `FW-*`, `OI-*`, `CM-*`) are defined in [Appendix A](#appendix-a-requirements-referenced) and [Appendix B](#appendix-b-open-items). Items marked **Proposed** are design choices made here that the requirements do not settle.
 
