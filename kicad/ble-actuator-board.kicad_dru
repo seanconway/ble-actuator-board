@@ -1,0 +1,102 @@
+(version 1)
+
+# Custom design rules for this PCB.
+# Stackup (JLC 4-layer, JLC7628): F.Cu signal (1 oz) / In1.Cu GND plane (0.5 oz) /
+# In2.Cu power (0.5 oz) / B.Cu signal (1 oz). See hardware build spec 7.1.
+# Net-class defaults live in ble-actuator-board.kicad_pro; these rules set the hard minimums.
+# Widths below are for the 1 oz outer layers. Later rules take precedence.
+
+# --- Minimum widths per class (opt = net-class default) -----------------------
+# Mins are the narrowest width that still carries the class's worst-case current
+# (IPC-2221 external, 1 oz, 10 C rise). Route at opt; the gap is room for short
+# runs into pads and caps.
+
+(rule "Signal min width"
+	(condition "A.NetClass == 'Default' || A.NetClass == 'Analog'")
+	(constraint track_width (min 0.15mm) (opt 0.2mm)))
+
+# 0.2 mm carries ~0.75 A; class worst case is 200 mA.
+(rule "Power min width"
+	(condition "A.NetClass == 'Power'")
+	(constraint track_width (min 0.2mm) (opt 0.3mm)))
+
+# GND returns through the In1.Cu plane; tracks are short stubs to vias and pours.
+(rule "GND min width"
+	(condition "A.NetClass == 'GND'")
+	(constraint track_width (min 0.15mm) (opt 0.4mm)))
+
+# 0.25 mm carries ~0.87 A; peak inductor current is ~0.4 A.
+(rule "Switch node min width"
+	(condition "A.NetClass == 'Switch'")
+	(constraint track_width (min 0.25mm) (opt 0.4mm)))
+
+# 0.25 mm carries ~0.87 A; planned VBUS limit is 500 mA. Long runs stay at opt.
+(rule "Power_High min width"
+	(condition "A.NetClass == 'Power_High'")
+	(constraint track_width (min 0.25mm) (opt 0.5mm)))
+
+# --- Inner power layer (In2.Cu, 0.5 oz): needs about 2x the outer width -------
+# IPC-2221 internal, 10 C rise: 1.0 A needs ~1.8 mm, 0.2 A needs ~0.2 mm.
+# Power_High nets on In2.Cu should be pours; any track there must be >= 1.8 mm.
+(rule "Power_High on inner layer"
+	(layer "In2.Cu")
+	(condition "A.Type == 'track' && A.NetClass == 'Power_High'")
+	(constraint track_width (min 1.8mm)))
+
+(rule "Power and Switch on inner layer"
+	(layer "In2.Cu")
+	(condition "A.Type == 'track' && (A.NetClass == 'Power' || A.NetClass == 'Switch')")
+	(constraint track_width (min 0.4mm)))
+
+# Switch nodes stay on F.Cu with the inductors (no vias in SW nodes, spec 4.3).
+(rule "Switch nodes outer layer only"
+	(layer inner)
+	(condition "A.NetClass == 'Switch'")
+	(constraint disallow track via zone))
+
+# In1.Cu is the solid GND reference plane: nothing but GND on it.
+(rule "GND plane stays solid"
+	(layer "In1.Cu")
+	(condition "A.NetName != 'GND'")
+	(constraint disallow track zone))
+
+# --- Layout rules from the hardware build spec (4.3, 4.6) ---------------------
+
+# Keep buck switch nodes short and compact. Warning only.
+(rule "Switch node length"
+	(condition "A.NetClass == 'Switch'")
+	(constraint length (max 5.5mm))
+	(severity warning))
+
+# Keep analog sense lines and I2C away from the buck switch nodes.
+(rule "Sense lines away from SW nodes"
+	(condition "(A.NetClass == 'Analog' || A.NetName == '/SDA' || A.NetName == '/SCL') && B.NetClass == 'Switch'")
+	(constraint clearance (min 0.5mm)))
+
+# GND next to the buck switch nodes is harmless; the 0.2 mm Switch clearance
+# protects quiet nets. Lets U2's PVSS1/PVSS2 escape at full width.
+(rule "GND to switch node clearance"
+	(condition "A.NetClass == 'GND' && B.NetClass == 'Switch'")
+	(constraint clearance (min 0.15mm)))
+
+# --- Thermal spokes on small pads ---------------------------------------------
+# Fine-pitch IC pins, U3's exposed-pad vias, and small passives can only fit one
+# spoke. One spoke is fine electrically and helps against tombstoning.
+(rule "Single spoke on small pads"
+	(condition "A.Type == 'pad' && (A.memberOfFootprint('U1') || A.memberOfFootprint('U2') || A.memberOfFootprint('U3') || A.memberOfFootprint('C10') || A.memberOfFootprint('TH1'))")
+	(constraint min_resolved_spokes 1))
+
+# --- Neck-down at fine-pitch pins (must stay last) -----------------------------
+# U2 (0.25 mm pads), U3 (0.24 mm pads), and U1 (0.4 mm pads) are narrower than the
+# power widths. Inside their courtyards, power tracks may neck to 0.15 mm; widen again
+# as soon as the track leaves the courtyard. The same applies inside the L1/L2
+# courtyards, where switch-node stubs end on the inductor pads.
+(rule "Neck-down at U1/U2/U3"
+	(condition "A.Type == 'track' && A.NetClass != 'Default' && A.NetClass != 'Analog' && (A.intersectsCourtyard('U1') || A.intersectsCourtyard('U2') || A.intersectsCourtyard('U3') || A.intersectsCourtyard('L1') || A.intersectsCourtyard('L2'))")
+	(constraint track_width (min 0.15mm)))
+
+# GND pins at the ICs include the buck power grounds (U2 PVSS1/PVSS2), which carry
+# switching current. Keep GND at 0.2 mm or wider even inside the courtyards.
+(rule "GND neck-down at U1/U2/U3"
+	(condition "A.Type == 'track' && A.NetClass == 'GND' && (A.intersectsCourtyard('U1') || A.intersectsCourtyard('U2') || A.intersectsCourtyard('U3'))")
+	(constraint track_width (min 0.2mm)))
